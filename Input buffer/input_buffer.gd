@@ -12,8 +12,8 @@ var joypad_timestamps: Dictionary
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
-	pause_mode = Node.PAUSE_MODE_PROCESS
-	
+	process_mode = Node.PROCESS_MODE_PAUSABLE
+
 	# Initialize all dictionary entris.
 	keyboard_timestamps = {}
 	joypad_timestamps = {}
@@ -24,8 +24,8 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventKey:
 		if !event.pressed or event.is_echo():
 			return
-			
-		var scancode: int = event.scancode
+
+		var scancode: int = event.keycode
 		keyboard_timestamps[scancode] = Time.get_ticks_msec()
 	elif event is InputEventJoypadButton:
 		if !event.pressed or event.is_echo():
@@ -38,9 +38,9 @@ func _input(event: InputEvent) -> void:
 func is_action_press_buffered(action: String) -> bool:
 	# Get the inputs associated with the action. If any one of them was pressed in the last BUFFER_WINDOW milliseconds,
 	# the action is buffered.
-	for event in InputMap.get_action_list(action):
+	for event in InputMap.action_get_events(action):
 		if event is InputEventKey:
-			var scancode: int = event.scancode
+			var scancode: int = event.keycode
 			if keyboard_timestamps.has(scancode):
 				if Time.get_ticks_msec() - keyboard_timestamps[scancode] <= BUFFER_WINDOW:
 					# Prevent this method from returning true repeatedly and registering duplicate actions.
@@ -50,7 +50,8 @@ func is_action_press_buffered(action: String) -> bool:
 		elif event is InputEventJoypadButton:
 			var button_index: int = event.button_index
 			if joypad_timestamps.has(button_index):
-				if Time.get_ticks_msec() - joypad_timestamps[button_index] <= BUFFER_WINDOW:
+				var delta = Time.get_ticks_msec() - joypad_timestamps[button_index]
+				if delta <= BUFFER_WINDOW:
 					_invalidate_action(action)
 					return true
 	# If there's ever a third type of buffer-able action (mouse clicks maybe?), it'd probably be worth it to generalize
@@ -63,9 +64,9 @@ func is_action_press_buffered(action: String) -> bool:
 # Records unreasonable timestamps for all the inputs in an action. Called when IsActionPressBuffered returns true, as
 # otherwise it would continue returning true every frame for the rest of the buffer window.
 func _invalidate_action(action: String) -> void:
-	for event in InputMap.get_action_list(action):
+	for event in InputMap.action_get_events(action):
 		if event is InputEventKey:
-			var scancode: int = event.scancode
+			var scancode: int = event.keycode
 			if keyboard_timestamps.has(scancode):
 				keyboard_timestamps[scancode] = 0
 		elif event is InputEventJoypadButton:
