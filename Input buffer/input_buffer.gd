@@ -9,23 +9,25 @@ const BUFFER_WINDOW: int = 150
 
 var keyboard_timestamps: Dictionary
 var joypad_timestamps: Dictionary
+var mouse_timestamps: Dictionary
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
-	pause_mode = Node.PAUSE_MODE_PROCESS
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	
 	# Initialize all dictionary entris.
 	keyboard_timestamps = {}
 	joypad_timestamps = {}
+	mouse_timestamps = {}
 	
 
 # Called whenever the player makes an input.
-func _input(event: InputEvent) -> void:
+func _input(event):
 	if event is InputEventKey:
 		if !event.pressed or event.is_echo():
 			return
 			
-		var scancode: int = event.scancode
+		var scancode: int = event.physical_keycode
 		keyboard_timestamps[scancode] = Time.get_ticks_msec()
 	elif event is InputEventJoypadButton:
 		if !event.pressed or event.is_echo():
@@ -33,14 +35,21 @@ func _input(event: InputEvent) -> void:
 			
 		var button_index: int = event.button_index
 		joypad_timestamps[button_index] = Time.get_ticks_msec()
+	elif event is InputEventMouseButton:
+		if !event.is_pressed or event.is_echo():
+			return
+		
+		var button_index: int = event.button_index
+		mouse_timestamps[button_index] = Time.get_ticks_msec()
+		
 	
 # Returns whether any of the keyboard keys or joypad buttons in the given action were pressed within the buffer window.
 func is_action_press_buffered(action: String) -> bool:
 	# Get the inputs associated with the action. If any one of them was pressed in the last BUFFER_WINDOW milliseconds,
 	# the action is buffered.
-	for event in InputMap.get_action_list(action):
+	for event in InputMap.action_get_events(action):
 		if event is InputEventKey:
-			var scancode: int = event.scancode
+			var scancode: int = event.physical_keycode
 			if keyboard_timestamps.has(scancode):
 				if Time.get_ticks_msec() - keyboard_timestamps[scancode] <= BUFFER_WINDOW:
 					# Prevent this method from returning true repeatedly and registering duplicate actions.
@@ -53,6 +62,12 @@ func is_action_press_buffered(action: String) -> bool:
 				if Time.get_ticks_msec() - joypad_timestamps[button_index] <= BUFFER_WINDOW:
 					_invalidate_action(action)
 					return true
+		elif event is InputEventMouseButton:
+			var button_index: int = event.button_index
+			if mouse_timestamps.has(button_index):
+				if Time.get_ticks_msec() - mouse_timestamps[button_index] <= BUFFER_WINDOW:
+					_invalidate_action(action)
+					return true
 	# If there's ever a third type of buffer-able action (mouse clicks maybe?), it'd probably be worth it to generalize
 	# the repetitive keyboard/joypad code into something that works for any input method. Until then, by the YAGNI 
 	# principle, the repetitive stuff stays >:)
@@ -63,12 +78,17 @@ func is_action_press_buffered(action: String) -> bool:
 # Records unreasonable timestamps for all the inputs in an action. Called when IsActionPressBuffered returns true, as
 # otherwise it would continue returning true every frame for the rest of the buffer window.
 func _invalidate_action(action: String) -> void:
-	for event in InputMap.get_action_list(action):
+	for event in InputMap.action_get_events(action):
 		if event is InputEventKey:
-			var scancode: int = event.scancode
+			var scancode: int = event.physical_keycode
 			if keyboard_timestamps.has(scancode):
 				keyboard_timestamps[scancode] = 0
 		elif event is InputEventJoypadButton:
 			var button_index: int = event.button_index
 			if joypad_timestamps.has(button_index):
 				joypad_timestamps[button_index] = 0
+		elif event is InputEventMouseButton:
+			var button_index: int = event.button_index
+			if mouse_timestamps.has(button_index):
+				mouse_timestamps[button_index] = 0
+
